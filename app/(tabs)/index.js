@@ -1,169 +1,167 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useEffect, useState } from 'react';
-import { Modal, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { Calendar } from 'react-native-calendars';
-import * as Progress from 'react-native-progress';
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useEffect, useState } from "react";
+import { Dimensions, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { LineChart } from "react-native-chart-kit";
 
-const ML_POR_VASO = 200;
-const METAS_INICIALES = [
-  { id:'proteinas',nombre:'Proteínas',emoji:'🥩',meta:8 },
-  { id:'cereales',nombre:'Cereales',emoji:'🍞',meta:5 },
-  { id:'grasas',nombre:'Grasas',emoji:'🥑',meta:3 },
-  { id:'frutas',nombre:'Frutas',emoji:'🍎',meta:3 },
-  { id:'verduras',nombre:'Verduras',emoji:'🥦',meta:4 },
-  { id:'lacteos',nombre:'Lácteos',emoji:'🥛',meta:2 },
-];
+const width = Dimensions.get("window").width;
 
-export default function App(){
-  const [registro,setRegistro]=useState({});
-  const [metas,setMetas]=useState(METAS_INICIALES);
-  const [metaVasos,setMetaVasos]=useState(10);
-  const [controles,setControles]=useState([]);
-  const [diaSeleccionado,setDiaSeleccionado]=useState(new Date().toISOString().split('T')[0]);
-  const [modalConfig,setModalConfig]=useState(false);
-  const [verCalendario,setVerCalendario]=useState(false);
+export default function App() {
+  const hoy = new Date().toISOString().split("T")[0];
+  const [pantalla, setPantalla] = useState("registro");
+  const [registro, setRegistro] = useState({});
+  const [metas, setMetas] = useState({
+    proteina: 120,
+    carbs: 200,
+    grasas: 60
+  });
 
-  useEffect(()=>{ cargarTodo() },[])
+  const [metaAgua, setMetaAgua] = useState(8);
 
-  const cargarTodo=async()=>{
-    try{
-      const reg=await AsyncStorage.getItem('@nutri_reg');
-      const met=await AsyncStorage.getItem('@nutri_metas');
-      const agua=await AsyncStorage.getItem('@nutri_meta_agua');
-      if(reg) setRegistro(JSON.parse(reg))
-      if(met) setMetas(JSON.parse(met))
-      if(agua) setMetaVasos(JSON.parse(agua))
-    }catch(e){console.log(e)}
-  }
+  const dia = registro[hoy] || {
+    proteina: 0,
+    carbs: 0,
+    grasas: 0,
+    agua: 0
+  };
 
-  const guardar=async(nReg,nMet,nMetaAgua)=>{
+  useEffect(() => {
+    cargar();
+  }, []);
+
+  const cargar = async () => {
     try {
-      if(nReg){ setRegistro(nReg); await AsyncStorage.setItem('@nutri_reg',JSON.stringify(nReg)); }
-      if(nMet){ setMetas(nMet); await AsyncStorage.setItem('@nutri_metas',JSON.stringify(nMet)); }
-      if(nMetaAgua){ setMetaVasos(nMetaAgua); await AsyncStorage.setItem('@nutri_meta_agua',JSON.stringify(nMetaAgua)); }
-    } catch(e) { console.log(e) }
-  }
+      const r = await AsyncStorage.getItem("registro");
+      const m = await AsyncStorage.getItem("metas");
+      const a = await AsyncStorage.getItem("metaAgua");
+      if (r) setRegistro(JSON.parse(r));
+      if (m) setMetas(JSON.parse(m));
+      if (a) setMetaAgua(JSON.parse(a));
+    } catch (e) { }
+  };
 
-  const modificarDato=(id,cambio)=>{
-    const n={...registro}
-    if(!n[diaSeleccionado]) n[diaSeleccionado]={agua:0}
-    n[diaSeleccionado][id]=Math.max(0,(n[diaSeleccionado][id]||0)+cambio)
-    guardar(n)
-  }
+  const guardarRegistro = async (nuevo) => {
+    setRegistro(nuevo);
+    await AsyncStorage.setItem("registro", JSON.stringify(nuevo));
+  };
 
-  const calcularProgresoDia=(fecha)=>{
-    const d=registro[fecha]||{agua:0}
-    const itemsOk=metas.filter(m=>(d[m.id]||0)>=m.meta).length
-    const aguaOk=(d.agua||0)>=metaVasos?1:0
-    return (itemsOk+aguaOk)/(metas.length+1)
-  }
+  const guardarMetas = async (nuevo) => {
+    setMetas(nuevo);
+    await AsyncStorage.setItem("metas", JSON.stringify(nuevo));
+  };
 
-  const generarMarcadoCalendario=()=>{
-    let marcado={}
-    Object.keys(registro).forEach(f=>{
-      const p=calcularProgresoDia(f)
-      if(p>=1) marcado[f]={marked:true,dotColor:'#10b981'}
-      else if(p>=0.5) marcado[f]={marked:true,dotColor:'#f59e0b'}
-      else marcado[f]={marked:true,dotColor:'#ef4444'}
-    })
-    marcado[diaSeleccionado]={...(marcado[diaSeleccionado]||{}),selected:true,selectedColor:'#3b82f6'}
-    return marcado
-  }
+  const guardarAgua = async (n) => {
+    setMetaAgua(n);
+    await AsyncStorage.setItem("metaAgua", JSON.stringify(n));
+  };
 
-  const datosHoy=registro[diaSeleccionado]||{agua:0}
-  const adherencia = (Object.keys(registro).length > 0) ? (Object.keys(registro).reduce((acc,f)=>acc+calcularProgresoDia(f),0)/Object.keys(registro).length)*100 : 0;
+  const modificar = (campo, cambio) => {
+    const nuevo = { ...registro };
+    if (!nuevo[hoy]) nuevo[hoy] = { proteina: 0, carbs: 0, grasas: 0, agua: 0 };
+    nuevo[hoy][campo] = Math.max(0, (nuevo[hoy][campo] || 0) + cambio);
+    guardarRegistro(nuevo);
+  };
 
-  return(
-    <SafeAreaView style={styles.container}>
-      <Modal visible={modalConfig} animationType="slide">
-        <SafeAreaView style={{flex:1}}><ScrollView style={{padding:30}}>
-          <Text style={styles.modalTitle}>⚙️ Ajustes de Pauta</Text>
-          <Text style={styles.label}>Meta de Agua (vasos)</Text>
-          <TextInput style={styles.input} keyboardType="numeric" defaultValue={metaVasos.toString()} onChangeText={v=>setMetaVasos(parseInt(v)||0)} />
-          {metas.map(m=>(
-            <View key={m.id} style={styles.comidaFila}>
-              <Text>{m.emoji} {m.nombre}</Text>
-              <TextInput style={styles.inputMini} keyboardType="numeric" defaultValue={m.meta.toString()} onChangeText={v=>{
-                const nm=metas.map(x=>x.id===m.id?{...x,meta:parseInt(v)||0}:x); setMetas(nm);
-              }} />
-            </View>
-          ))}
-          <TouchableOpacity style={styles.btnSave} onPress={()=>{guardar(null,metas,metaVasos); setModalConfig(false);}}>
-            <Text style={{color:'#fff',fontWeight:'bold'}}>GUARDAR</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={()=>setModalConfig(false)} style={{marginTop:20}}><Text style={{textAlign:'center',color:'red'}}>Cancelar</Text></TouchableOpacity>
-        </ScrollView></SafeAreaView>
-      </Modal>
+  const porcentaje = (valor, meta) => {
+    if (!meta) return 0;
+    return Math.min(100, Math.round((valor / meta) * 100));
+  };
 
-      <LinearGradient colors={['#0f172a','#1e293b']} style={styles.header}>
-        <View style={styles.headerTop}>
-          <Text style={styles.userText}>Nutri Dashboard</Text>
-          <TouchableOpacity style={styles.btnIcon} onPress={()=>setModalConfig(true)}>
-            <Text style={{fontSize:22}}>⚙️</Text>
-          </TouchableOpacity>
-        </View>
-        <View style={styles.monthlyCard}>
-          <View>
-            <Text style={styles.monthlyLabel}>Adherencia mensual</Text>
-            <Text style={styles.monthlyValue}>{adherencia.toFixed(1)}%</Text>
+  const datosGrafico = [
+    dia.proteina || 0,
+    dia.carbs || 0,
+    dia.grasas || 0
+  ];
+
+  return (
+    <View style={styles.container}>
+      {pantalla === "registro" && (
+        <ScrollView>
+          <Text style={styles.titulo}>Registro Diario</Text>
+          {["proteina", "carbs", "grasas", "agua"].map((campo) => {
+            const valor = dia[campo] || 0;
+            return (
+              <View key={campo} style={styles.card}>
+                <Text style={styles.label}>{campo}</Text>
+                <View style={styles.row}>
+                  <TouchableOpacity style={styles.boton} onPress={() => modificar(campo, -10)}>
+                    <Text style={styles.textBoton}>-</Text>
+                  </TouchableOpacity>
+                  <Text style={styles.valor}>{valor}</Text>
+                  <TouchableOpacity style={styles.boton} onPress={() => modificar(campo, 10)}>
+                    <Text style={styles.textBoton}>+</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            );
+          })}
+        </ScrollView>
+      )}
+
+      {pantalla === "resumen" && (
+        <ScrollView>
+          <Text style={styles.titulo}>Resumen</Text>
+          <LineChart
+            data={{
+              labels: ["Prot", "Carbs", "Grasas"],
+              datasets: [{ data: datosGrafico }]
+            }}
+            width={width - 20}
+            height={220}
+            chartConfig={{
+              backgroundGradientFrom: "#fff",
+              backgroundGradientTo: "#fff",
+              color: (opacity = 1) => `rgba(76, 175, 80, ${opacity})`,
+            }}
+            style={{ marginVertical: 20, borderRadius: 16 }}
+          />
+          <View style={{padding: 20}}>
+            <Text style={styles.resumen}>Proteina {porcentaje(dia.proteina, metas.proteina)}%</Text>
+            <Text style={styles.resumen}>Carbs {porcentaje(dia.carbs, metas.carbs)}%</Text>
+            <Text style={styles.resumen}>Grasas {porcentaje(dia.grasas, metas.grasas)}%</Text>
+            <Text style={styles.resumen}>Agua {porcentaje(dia.agua, metaAgua)}%</Text>
           </View>
-          <Progress.Circle size={70} progress={adherencia/100} color="#10ac84" thickness={8} borderWidth={0} />
-        </View>
-      </LinearGradient>
+        </ScrollView>
+      )}
 
-      <ScrollView style={styles.content}>
-        <TouchableOpacity style={[styles.btnAction,{backgroundColor:'#3b82f6', marginBottom:15}]} onPress={()=>setVerCalendario(!verCalendario)}>
-          <Text style={styles.btnActionText}>📅 Calendario</Text>
-        </TouchableOpacity>
-        {verCalendario && <Calendar style={styles.card} onDayPress={day=>{setDiaSeleccionado(day.dateString); setVerCalendario(false);}} markedDates={generarMarcadoCalendario()} />}
-        
-        <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Día {diaSeleccionado}</Text>
-          <View style={styles.comidaFila}>
-            <Text>💧 Agua ({datosHoy.agua*ML_POR_VASO}ml)</Text>
-            <View style={styles.rowInputs}>
-              <TouchableOpacity style={styles.btnMini} onPress={()=>modificarDato('agua',-1)}><Text>-</Text></TouchableOpacity>
-              <TouchableOpacity style={styles.btnMini} onPress={()=>modificarDato('agua',1)}><Text>+</Text></TouchableOpacity>
-            </View>
-          </View>
-          {metas.map(m=>(
-            <View key={m.id} style={styles.comidaFila}>
-              <Text>{m.emoji} {m.nombre}</Text>
-              <View style={styles.rowInputs}>
-                <Text style={styles.countText}>{(datosHoy[m.id]||0)}/{m.meta}</Text>
-                <TouchableOpacity style={styles.btnMini} onPress={()=>modificarDato(m.id,-1)}><Text>-</Text></TouchableOpacity>
-                <TouchableOpacity style={styles.btnMini} onPress={()=>modificarDato(m.id,1)}><Text>+</Text></TouchableOpacity>
+      {pantalla === "metas" && (
+        <ScrollView>
+          <Text style={styles.titulo}>Metas</Text>
+          {Object.keys(metas).map((m) => (
+            <View key={m} style={styles.card}>
+              <Text style={styles.label}>{m}</Text>
+              <View style={styles.row}>
+                <TouchableOpacity style={styles.boton} onPress={() => guardarMetas({ ...metas, [m]: Math.max(0, metas[m] - 10) })}>
+                  <Text style={styles.textBoton}>-</Text>
+                </TouchableOpacity>
+                <Text style={styles.valor}>{metas[m]}</Text>
+                <TouchableOpacity style={styles.boton} onPress={() => guardarMetas({ ...metas, [m]: metas[m] + 10 })}>
+                  <Text style={styles.textBoton}>+</Text>
+                </TouchableOpacity>
               </View>
             </View>
           ))}
-        </View>
-      </ScrollView>
-    </SafeAreaView>
-  )
+        </ScrollView>
+      )}
+
+      <View style={styles.menu}>
+        <TouchableOpacity onPress={() => setPantalla("registro")}><Text style={styles.menuText}>Registro</Text></TouchableOpacity>
+        <TouchableOpacity onPress={() => setPantalla("resumen")}><Text style={styles.menuText}>Resumen</Text></TouchableOpacity>
+        <TouchableOpacity onPress={() => setPantalla("metas")}><Text style={styles.menuText}>Metas</Text></TouchableOpacity>
+      </View>
+    </View>
+  );
 }
 
-const styles=StyleSheet.create({
-  container:{flex:1,backgroundColor:'#f8fafc'},
-  header:{padding:25,paddingTop:50,borderBottomLeftRadius:35,borderBottomRightRadius:35},
-  headerTop:{flexDirection:'row',justifyContent:'space-between',alignItems:'center',marginBottom:20},
-  userText:{color:'white',fontSize:22,fontWeight:'bold'},
-  btnIcon:{backgroundColor:'rgba(255,255,255,0.2)',width:55,height:55,borderRadius:16,justifyContent:'center',alignItems:'center'},
-  monthlyCard:{backgroundColor:'rgba(255,255,255,0.1)',padding:20,borderRadius:25,flexDirection:'row',justifyContent:'space-between',alignItems:'center'},
-  monthlyLabel:{color:'rgba(255,255,255,0.7)',fontSize:12,fontWeight:'bold'},
-  monthlyValue:{color:'white',fontSize:32,fontWeight:'bold'},
-  content:{flex:1,padding:20},
-  btnAction:{padding:18,borderRadius:22,alignItems:'center'},
-  btnActionText:{color:'white',fontWeight:'bold'},
-  card:{backgroundColor:'white',padding:20,borderRadius:28,marginBottom:20},
-  sectionTitle:{fontSize:16,fontWeight:'bold',marginBottom:12},
-  comidaFila:{flexDirection:'row',justifyContent:'space-between',alignItems:'center',paddingVertical:10,borderBottomWidth:1,borderBottomColor:'#f1f5f9'},
-  rowInputs:{flexDirection:'row',alignItems:'center'},
-  countText:{marginRight:10,fontWeight:'bold',color:'#3b82f6'},
-  btnMini:{backgroundColor:'#f1f5f9',width:40,height:40,borderRadius:14,justifyContent:'center',alignItems:'center',marginLeft:8},
-  modalTitle:{fontSize:20,fontWeight:'bold',textAlign:'center',marginBottom:25},
-  input:{backgroundColor:'#f1f5f9',padding:16,borderRadius:18,marginBottom:15},
-  inputMini:{backgroundColor:'#f1f5f9',width:60,height:40,textAlign:'center',borderRadius:12,fontWeight:'bold'},
-  btnSave:{backgroundColor:'#10ac84',padding:20,borderRadius:18,alignItems:'center',marginTop:10},
-  label:{fontWeight:'bold',marginBottom:8,color:'#64748b'}
+const styles = StyleSheet.create({
+  container: { flex: 1, paddingTop: 50, backgroundColor: "#f5f5f5" },
+  titulo: { fontSize: 28, fontWeight: "bold", textAlign: "center", marginBottom: 20 },
+  card: { backgroundColor: "#fff", padding: 20, margin: 10, borderRadius: 12 },
+  label: { fontSize: 18, marginBottom: 10, textTransform: 'capitalize' },
+  row: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  boton: { backgroundColor: "#4CAF50", padding: 15, borderRadius: 10, minWidth: 50, alignItems: 'center' },
+  textBoton: { color: "#fff", fontSize: 20 },
+  valor: { fontSize: 22 },
+  menu: { flexDirection: "row", justifyContent: "space-around", padding: 20, backgroundColor: "#fff", borderTopWidth: 1, borderTopColor: '#eee' },
+  menuText: { fontSize: 16, fontWeight: "bold" },
+  resumen: { fontSize: 18, marginBottom: 10 }
 });
