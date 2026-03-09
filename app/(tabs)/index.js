@@ -42,28 +42,13 @@ export default function App() {
       if (reg) setRegistro(JSON.parse(reg));
       if (met) setMetas(JSON.parse(met));
       if (con) setControles(JSON.parse(con));
-    } catch (e) { console.log("Error cargando datos", e); }
+    } catch (e) { console.log(e); }
   };
 
   const guardar = async (nReg, nMet, nCon) => {
     if (nReg) { setRegistro(nReg); await AsyncStorage.setItem('@nutri_v12', JSON.stringify(nReg)); }
     if (nMet) { setMetas(nMet); await AsyncStorage.setItem('@nutri_metas_v12', JSON.stringify(nMet)); }
     if (nCon) { setControles(nCon); await AsyncStorage.setItem('@nutri_controles_v12', JSON.stringify(nCon)); }
-  };
-
-  const calcularProgresoDia = (fecha) => {
-    const d = registro[fecha] || { agua: 0 };
-    const itemsOk = metas.filter(m => (d[m.id] || 0) >= m.meta).length;
-    const aguaOk = (d.agua || 0) >= metaVasos ? 1 : 0;
-    return (itemsOk + aguaOk) / (metas.length + 1);
-  };
-
-  const calcularAdherenciaMensual = () => {
-    const mesActual = diaSeleccionado.substring(0, 7);
-    const diasConDatos = Object.keys(registro).filter(fecha => fecha.startsWith(mesActual));
-    if (diasConDatos.length === 0) return 0;
-    const sumaProgresos = diasConDatos.reduce((acc, fecha) => acc + calcularProgresoDia(fecha), 0);
-    return (sumaProgresos / diasConDatos.length) * 100;
   };
 
   const modificarDato = (id, cambio) => {
@@ -81,11 +66,62 @@ export default function App() {
     }
   };
 
+  const calcularProgresoDia = (fecha) => {
+    const d = registro[fecha] || { agua: 0 };
+    const itemsOk = metas.filter(m => (d[m.id] || 0) >= m.meta).length;
+    const aguaOk = (d.agua || 0) >= metaVasos ? 1 : 0;
+    return (itemsOk + aguaOk) / (metas.length + 1);
+  };
+
+  const calcularAdherenciaMensual = () => {
+    const mesActual = diaSeleccionado.substring(0, 7);
+    const diasConDatos = Object.keys(registro).filter(fecha => fecha.startsWith(mesActual));
+    if (diasConDatos.length === 0) return 0;
+    const sumaProgresos = diasConDatos.reduce((acc, fecha) => acc + calcularProgresoDia(fecha), 0);
+    return (sumaProgresos / diasConDatos.length) * 100;
+  };
+
   const datosHoy = registro[diaSeleccionado] || { agua: 0, deportes: [] };
   const adherencia = calcularAdherenciaMensual();
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* MODAL CONFIGURACIÓN (PUESTO AL INICIO PARA EVITAR BLOQUEOS) */}
+      <Modal visible={modalConfig} animationType="slide" onRequestClose={() => setModalConfig(false)}>
+        <SafeAreaView style={{flex:1, backgroundColor: '#f8fafc'}}>
+          <ScrollView style={{padding: 30}}>
+            <Text style={styles.modalTitle}>Configurar Pauta</Text>
+            <Text style={styles.label}>Meta Agua (Vasos):</Text>
+            <TextInput 
+                style={styles.input} 
+                keyboardType="numeric" 
+                defaultValue={metaVasos.toString()} 
+                onChangeText={v => setMetaVasos(parseInt(v)||10)} 
+            />
+            {metas.map(m => (
+                <View key={m.id} style={styles.comidaFila}>
+                  <Text>{m.nombre}</Text>
+                  <TextInput 
+                      style={styles.inputMini} 
+                      keyboardType="numeric" 
+                      defaultValue={m.meta.toString()} 
+                      onChangeText={v => {
+                          const nm = metas.map(x => x.id===m.id ? {...x, meta: parseInt(v)||0} : x); 
+                          setMetas(nm);
+                      }} 
+                  />
+                </View>
+            ))}
+            <TouchableOpacity style={styles.btnSave} onPress={() => {guardar(null, metas); setModalConfig(false);}}>
+                <Text style={{color:'#fff', fontWeight:'bold'}}>GUARDAR CAMBIOS</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={()=>setModalConfig(false)}>
+                <Text style={{marginTop:25, textAlign:'center', color:'#64748b'}}>Cerrar</Text>
+            </TouchableOpacity>
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
+
       <LinearGradient colors={['#0f172a', '#1e293b']} style={styles.header}>
         <View style={styles.headerTop}>
           <Text style={styles.userText}>Nutri Dashboard</Text>
@@ -93,8 +129,9 @@ export default function App() {
             onPress={() => setModalConfig(true)} 
             style={styles.btnIcon}
             activeOpacity={0.6}
+            hitSlop={{top: 20, bottom: 20, left: 20, right: 20}}
           >
-            <Text style={{fontSize: 22}}>⚙️</Text>
+            <Text style={{fontSize: 24}}>⚙️</Text>
           </TouchableOpacity>
         </View>
 
@@ -151,11 +188,10 @@ export default function App() {
 
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>Pauta Diaria</Text>
-          {/* Fila Agua */}
           <View style={styles.comidaFila}>
             <View style={{flexDirection:'row', alignItems:'center'}}>
               <TouchableOpacity onPress={() => resetearDato('agua')} style={styles.btnTrash}><Text>🗑️</Text></TouchableOpacity>
-              <Text>💧 Agua (Vasos)</Text>
+              <Text>💧 Agua</Text>
             </View>
             <View style={styles.rowInputs}>
               <Text style={styles.countText}>{datosHoy.agua}/{metaVasos}</Text>
@@ -163,7 +199,6 @@ export default function App() {
               <TouchableOpacity onPress={() => modificarDato('agua', 1)} style={styles.btnMini}><Text>+</Text></TouchableOpacity>
             </View>
           </View>
-          {/* Categorías Metas */}
           {metas.map(m => (
             <View key={m.id} style={styles.comidaFila}>
               <View style={{flexDirection:'row', alignItems:'center'}}>
@@ -193,43 +228,7 @@ export default function App() {
         </View>
       </ScrollView>
 
-      {/* MODAL CONFIGURACIÓN - EL QUE NO FUNCIONABA */}
-      <Modal visible={modalConfig} animationType="slide">
-        <SafeAreaView style={{flex:1, backgroundColor: '#f8fafc'}}>
-          <View style={{padding: 30}}>
-            <Text style={styles.modalTitle}>Configurar Pauta</Text>
-            <Text style={styles.label}>Meta Agua (Vasos):</Text>
-            <TextInput 
-                style={styles.input} 
-                keyboardType="numeric" 
-                defaultValue={metaVasos.toString()} 
-                onChangeText={v => setMetaVasos(parseInt(v)||10)} 
-            />
-            {metas.map(m => (
-                <View key={m.id} style={styles.comidaFila}>
-                <Text>{m.nombre}</Text>
-                <TextInput 
-                    style={styles.inputMini} 
-                    keyboardType="numeric" 
-                    defaultValue={m.meta.toString()} 
-                    onChangeText={v => {
-                        const nm = metas.map(x => x.id===m.id ? {...x, meta: parseInt(v)||0} : x); 
-                        setMetas(nm);
-                    }} 
-                />
-                </View>
-            ))}
-            <TouchableOpacity style={styles.btnSave} onPress={() => {guardar(null, metas); setModalConfig(false);}}>
-                <Text style={{color:'#fff', fontWeight:'bold'}}>LISTO</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={()=>setModalConfig(false)}>
-                <Text style={{marginTop:20, textAlign:'center', color:'#64748b'}}>Cerrar sin guardar</Text>
-            </TouchableOpacity>
-          </View>
-        </SafeAreaView>
-      </Modal>
-
-      {/* OTROS MODALES */}
+      {/* MODAL PESO CON DECIMALES */}
       <Modal visible={modalControl} animationType="fade" transparent={true}>
         <View style={styles.overlay}><View style={styles.modal}>
           <Text style={styles.modalTitle}>Nuevo Pesaje</Text>
@@ -243,6 +242,7 @@ export default function App() {
         </View></View>
       </Modal>
 
+      {/* MODAL DEPORTE */}
       <Modal visible={modalDeporte} animationType="fade" transparent={true}>
         <View style={styles.overlay}><View style={styles.modal}>
           <Text style={styles.modalTitle}>Añadir Actividad</Text>
@@ -264,10 +264,10 @@ export default function App() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f8fafc' },
-  header: { padding: 25, paddingTop: 50, borderBottomLeftRadius: 35, borderBottomRightRadius: 35 },
+  header: { padding: 25, paddingTop: 50, borderBottomLeftRadius: 35, borderBottomRightRadius: 35, zIndex: 1 },
   headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
   userText: { color: 'white', fontSize: 22, fontWeight: 'bold' },
-  btnIcon: { backgroundColor: 'rgba(255,255,255,0.2)', width: 50, height: 50, borderRadius: 15, justifyContent: 'center', alignItems: 'center' },
+  btnIcon: { backgroundColor: 'rgba(255,255,255,0.2)', width: 55, height: 55, borderRadius: 16, justifyContent: 'center', alignItems: 'center', zIndex: 999 },
   monthlyCard: { backgroundColor: 'rgba(255,255,255,0.1)', padding: 20, borderRadius: 25, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   monthlyLabel: { color: 'rgba(255,255,255,0.7)', fontSize: 12, fontWeight: 'bold' },
   monthlyValue: { color: 'white', fontSize: 32, fontWeight: 'bold' },
@@ -285,12 +285,12 @@ const styles = StyleSheet.create({
   rowInputs: { flexDirection: 'row', alignItems: 'center' },
   countText: { marginRight: 10, fontWeight: 'bold', color: '#3b82f6', fontSize: 16 },
   btnMini: { backgroundColor: '#f1f5f9', width: 40, height: 40, borderRadius: 14, justifyContent: 'center', alignItems: 'center', marginLeft: 8 },
-  btnTrash: { marginRight: 10, padding: 5 },
+  btnTrash: { marginRight: 12, padding: 4 },
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'center', alignItems: 'center' },
   modal: { backgroundColor: 'white', width: '85%', padding: 30, borderRadius: 32 },
   modalTitle: { fontSize: 20, fontWeight: 'bold', textAlign: 'center', marginBottom: 25 },
   input: { backgroundColor: '#f1f5f9', padding: 16, borderRadius: 18, marginBottom: 15 },
   inputMini: { backgroundColor: '#f1f5f9', width: 60, height: 40, textAlign: 'center', borderRadius: 12, fontWeight: 'bold' },
-  btnSave: { backgroundColor: '#10ac84', padding: 20, borderRadius: 18, alignItems: 'center' },
+  btnSave: { backgroundColor: '#10ac84', padding: 20, borderRadius: 18, alignItems: 'center', marginTop: 10 },
   label: { fontWeight: 'bold', marginBottom: 8, color: '#64748b' }
 });
