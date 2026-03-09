@@ -1,167 +1,189 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useEffect, useState } from "react";
-import { Dimensions, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { LineChart } from "react-native-chart-kit";
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useEffect, useState } from 'react';
+import {
+  Modal,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
+} from 'react-native';
+import { Calendar } from 'react-native-calendars';
 
-const width = Dimensions.get("window").width;
+const METAS_INICIALES = [
+  { id: 'proteinas', nombre: 'Proteínas', emoji: '🥩', meta: 8 },
+  { id: 'cereales', nombre: 'Cereales', emoji: '🍞', meta: 5 },
+  { id: 'grasas', nombre: 'Grasas', emoji: '🥑', meta: 3 },
+  { id: 'frutas', nombre: 'Frutas', emoji: '🍎', meta: 3 },
+  { id: 'verduras', nombre: 'Verduras', emoji: '🥦', meta: 4 },
+  { id: 'lacteos', nombre: 'Lácteos', emoji: '🥛', meta: 2 },
+];
 
 export default function App() {
-  const hoy = new Date().toISOString().split("T")[0];
-  const [pantalla, setPantalla] = useState("registro");
   const [registro, setRegistro] = useState({});
-  const [metas, setMetas] = useState({
-    proteina: 120,
-    carbs: 200,
-    grasas: 60
-  });
+  const [metas, setMetas] = useState(METAS_INICIALES);
+  const [metaVasos, setMetaVasos] = useState(10);
+  const [diaSeleccionado, setDiaSeleccionado] = useState(new Date().toISOString().split('T')[0]);
+  
+  const [verCalendario, setVerCalendario] = useState(false);
+  const [modalDeporte, setModalDeporte] = useState(false);
+  const [modalConfig, setModalConfig] = useState(false);
 
-  const [metaAgua, setMetaAgua] = useState(8);
+  const [nombreDep, setNombreDep] = useState('');
+  const [kcalDep, setKcalDep] = useState('');
 
-  const dia = registro[hoy] || {
-    proteina: 0,
-    carbs: 0,
-    grasas: 0,
-    agua: 0
-  };
+  useEffect(() => { cargarTodo(); }, []);
 
-  useEffect(() => {
-    cargar();
-  }, []);
-
-  const cargar = async () => {
+  const cargarTodo = async () => {
     try {
-      const r = await AsyncStorage.getItem("registro");
-      const m = await AsyncStorage.getItem("metas");
-      const a = await AsyncStorage.getItem("metaAgua");
-      if (r) setRegistro(JSON.parse(r));
-      if (m) setMetas(JSON.parse(m));
-      if (a) setMetaAgua(JSON.parse(a));
-    } catch (e) { }
+      const reg = await AsyncStorage.getItem('@nutri_data_v13');
+      if (reg) setRegistro(JSON.parse(reg));
+    } catch (e) { console.log(e); }
   };
 
-  const guardarRegistro = async (nuevo) => {
-    setRegistro(nuevo);
-    await AsyncStorage.setItem("registro", JSON.stringify(nuevo));
+  const guardar = async (nuevoReg) => {
+    setRegistro(nuevoReg);
+    await AsyncStorage.setItem('@nutri_data_v13', JSON.stringify(nuevoReg));
   };
 
-  const guardarMetas = async (nuevo) => {
-    setMetas(nuevo);
-    await AsyncStorage.setItem("metas", JSON.stringify(nuevo));
+  const modificarDato = (id, cambio) => {
+    const n = { ...registro };
+    if (!n[diaSeleccionado]) n[diaSeleccionado] = { agua: 0, deportes: [] };
+    n[diaSeleccionado][id] = Math.max(0, (n[diaSeleccionado][id] || 0) + cambio);
+    guardar(n);
   };
 
-  const guardarAgua = async (n) => {
-    setMetaAgua(n);
-    await AsyncStorage.setItem("metaAgua", JSON.stringify(n));
+  const agregarDeporte = () => {
+    if (!nombreDep || !kcalDep) return;
+    const n = { ...registro };
+    if (!n[diaSeleccionado]) n[diaSeleccionado] = { agua: 0, deportes: [] };
+    if (!n[diaSeleccionado].deportes) n[diaSeleccionado].deportes = [];
+    
+    n[diaSeleccionado].deportes.push({ nombre: nombreDep, kcal: kcalDep });
+    setNombreDep(''); setKcalDep(''); setModalDeporte(false);
+    guardar(n);
   };
 
-  const modificar = (campo, cambio) => {
-    const nuevo = { ...registro };
-    if (!nuevo[hoy]) nuevo[hoy] = { proteina: 0, carbs: 0, grasas: 0, agua: 0 };
-    nuevo[hoy][campo] = Math.max(0, (nuevo[hoy][campo] || 0) + cambio);
-    guardarRegistro(nuevo);
-  };
-
-  const porcentaje = (valor, meta) => {
-    if (!meta) return 0;
-    return Math.min(100, Math.round((valor / meta) * 100));
-  };
-
-  const datosGrafico = [
-    dia.proteina || 0,
-    dia.carbs || 0,
-    dia.grasas || 0
-  ];
+  const datosHoy = registro[diaSeleccionado] || { agua: 0, deportes: [] };
+  const kcalTotales = (datosHoy.deportes || []).reduce((acc, cur) => acc + parseInt(cur.kcal || 0), 0);
 
   return (
-    <View style={styles.container}>
-      {pantalla === "registro" && (
-        <ScrollView>
-          <Text style={styles.titulo}>Registro Diario</Text>
-          {["proteina", "carbs", "grasas", "agua"].map((campo) => {
-            const valor = dia[campo] || 0;
-            return (
-              <View key={campo} style={styles.card}>
-                <Text style={styles.label}>{campo}</Text>
-                <View style={styles.row}>
-                  <TouchableOpacity style={styles.boton} onPress={() => modificar(campo, -10)}>
-                    <Text style={styles.textBoton}>-</Text>
-                  </TouchableOpacity>
-                  <Text style={styles.valor}>{valor}</Text>
-                  <TouchableOpacity style={styles.boton} onPress={() => modificar(campo, 10)}>
-                    <Text style={styles.textBoton}>+</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            );
-          })}
-        </ScrollView>
-      )}
-
-      {pantalla === "resumen" && (
-        <ScrollView>
-          <Text style={styles.titulo}>Resumen</Text>
-          <LineChart
-            data={{
-              labels: ["Prot", "Carbs", "Grasas"],
-              datasets: [{ data: datosGrafico }]
-            }}
-            width={width - 20}
-            height={220}
-            chartConfig={{
-              backgroundGradientFrom: "#fff",
-              backgroundGradientTo: "#fff",
-              color: (opacity = 1) => `rgba(76, 175, 80, ${opacity})`,
-            }}
-            style={{ marginVertical: 20, borderRadius: 16 }}
-          />
-          <View style={{padding: 20}}>
-            <Text style={styles.resumen}>Proteina {porcentaje(dia.proteina, metas.proteina)}%</Text>
-            <Text style={styles.resumen}>Carbs {porcentaje(dia.carbs, metas.carbs)}%</Text>
-            <Text style={styles.resumen}>Grasas {porcentaje(dia.grasas, metas.grasas)}%</Text>
-            <Text style={styles.resumen}>Agua {porcentaje(dia.agua, metaAgua)}%</Text>
+    <SafeAreaView style={styles.container}>
+      <LinearGradient colors={['#1e293b', '#0f172a']} style={styles.header}>
+        <View style={styles.headerRow}>
+          <View>
+            <Text style={styles.welcomeText}>Nutri Dashboard</Text>
+            <Text style={styles.dateText}>{diaSeleccionado}</Text>
           </View>
-        </ScrollView>
-      )}
+          <TouchableOpacity onPress={() => setModalConfig(true)} style={styles.settingsBtn}>
+            <Text style={{fontSize: 24}}>⚙️</Text>
+          </TouchableOpacity>
+        </View>
+        <View style={styles.statsCard}>
+          <View>
+            <Text style={styles.statsLabel}>Calorías Quemadas</Text>
+            <Text style={styles.statsValue}>{kcalTotales} kcal</Text>
+          </View>
+          <TouchableOpacity style={styles.addDepBtn} onPress={() => setModalDeporte(true)}>
+            <Text style={{color: 'white', fontWeight: 'bold'}}>+ Deporte</Text>
+          </TouchableOpacity>
+        </View>
+      </LinearGradient>
 
-      {pantalla === "metas" && (
-        <ScrollView>
-          <Text style={styles.titulo}>Metas</Text>
-          {Object.keys(metas).map((m) => (
-            <View key={m} style={styles.card}>
-              <Text style={styles.label}>{m}</Text>
-              <View style={styles.row}>
-                <TouchableOpacity style={styles.boton} onPress={() => guardarMetas({ ...metas, [m]: Math.max(0, metas[m] - 10) })}>
-                  <Text style={styles.textBoton}>-</Text>
-                </TouchableOpacity>
-                <Text style={styles.valor}>{metas[m]}</Text>
-                <TouchableOpacity style={styles.boton} onPress={() => guardarMetas({ ...metas, [m]: metas[m] + 10 })}>
-                  <Text style={styles.textBoton}>+</Text>
-                </TouchableOpacity>
+      <ScrollView style={styles.content}>
+        <View style={styles.actionRow}>
+          <TouchableOpacity style={[styles.mainBtn, {backgroundColor: '#3b82f6'}]} onPress={() => setVerCalendario(!verCalendario)}>
+            <Text style={styles.mainBtnText}>📅 Calendario</Text>
+          </TouchableOpacity>
+        </View>
+
+        {verCalendario && (
+          <Calendar 
+            onDayPress={day => {setDiaSeleccionado(day.dateString); setVerCalendario(false);}}
+            style={styles.calendarCard}
+          />
+        )}
+
+        <View style={styles.sectionCard}>
+          <Text style={styles.sectionTitle}>Pauta Diaria</Text>
+          {/* Agua */}
+          <View style={styles.itemRow}>
+            <Text style={styles.itemText}>💧 Agua</Text>
+            <View style={styles.controls}>
+              <Text style={styles.countText}>{datosHoy.agua || 0}/{metaVasos}</Text>
+              <TouchableOpacity onPress={() => modificarDato('agua', -1)} style={styles.stepBtn}><Text>-</Text></TouchableOpacity>
+              <TouchableOpacity onPress={() => modificarDato('agua', 1)} style={styles.stepBtn}><Text>+</Text></TouchableOpacity>
+            </View>
+          </View>
+          {/* Comidas */}
+          {metas.map(m => (
+            <View key={m.id} style={styles.itemRow}>
+              <Text style={styles.itemText}>{m.emoji} {m.nombre}</Text>
+              <View style={styles.controls}>
+                <Text style={styles.countText}>{(datosHoy[m.id] || 0)}/{m.meta}</Text>
+                <TouchableOpacity onPress={() => modificarDato(m.id, -1)} style={styles.stepBtn}><Text>-</Text></TouchableOpacity>
+                <TouchableOpacity onPress={() => modificarDato(m.id, 1)} style={styles.stepBtn}><Text>+</Text></TouchableOpacity>
               </View>
             </View>
           ))}
-        </ScrollView>
-      )}
+        </View>
 
-      <View style={styles.menu}>
-        <TouchableOpacity onPress={() => setPantalla("registro")}><Text style={styles.menuText}>Registro</Text></TouchableOpacity>
-        <TouchableOpacity onPress={() => setPantalla("resumen")}><Text style={styles.menuText}>Resumen</Text></TouchableOpacity>
-        <TouchableOpacity onPress={() => setPantalla("metas")}><Text style={styles.menuText}>Metas</Text></TouchableOpacity>
-      </View>
-    </View>
+        {/* Lista de Deportes */}
+        {datosHoy.deportes && datosHoy.deportes.length > 0 && (
+          <View style={styles.sectionCard}>
+            <Text style={styles.sectionTitle}>Actividad Física</Text>
+            {datosHoy.deportes.map((d, idx) => (
+              <View key={idx} style={styles.depItem}><Text>🏃 {d.nombre}</Text><Text style={{fontWeight:'bold'}}>-{d.kcal} kcal</Text></View>
+            ))}
+          </View>
+        )}
+      </ScrollView>
+
+      {/* MODAL DEPORTE */}
+      <Modal visible={modalDeporte} animationType="slide" transparent={true}>
+        <View style={styles.modalCentrado}>
+          <View style={styles.modalContenido}>
+            <Text style={styles.modalHeader}>Registrar Deporte</Text>
+            <TextInput placeholder="Ej: Running" style={styles.input} value={nombreDep} onChangeText={setNombreDep} />
+            <TextInput placeholder="Calorías" style={styles.input} keyboardType="numeric" value={kcalDep} onChangeText={setKcalDep} />
+            <TouchableOpacity style={styles.saveBtn} onPress={agregarDeporte}><Text style={{color:'white'}}>Agregar</Text></TouchableOpacity>
+            <TouchableOpacity onPress={() => setModalDeporte(false)}><Text style={{marginTop:15, color:'red'}}>Cerrar</Text></TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, paddingTop: 50, backgroundColor: "#f5f5f5" },
-  titulo: { fontSize: 28, fontWeight: "bold", textAlign: "center", marginBottom: 20 },
-  card: { backgroundColor: "#fff", padding: 20, margin: 10, borderRadius: 12 },
-  label: { fontSize: 18, marginBottom: 10, textTransform: 'capitalize' },
-  row: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  boton: { backgroundColor: "#4CAF50", padding: 15, borderRadius: 10, minWidth: 50, alignItems: 'center' },
-  textBoton: { color: "#fff", fontSize: 20 },
-  valor: { fontSize: 22 },
-  menu: { flexDirection: "row", justifyContent: "space-around", padding: 20, backgroundColor: "#fff", borderTopWidth: 1, borderTopColor: '#eee' },
-  menuText: { fontSize: 16, fontWeight: "bold" },
-  resumen: { fontSize: 18, marginBottom: 10 }
+  container: { flex: 1, backgroundColor: '#f1f5f9' },
+  header: { padding: 25, paddingTop: 50, borderBottomLeftRadius: 30, borderBottomRightRadius: 30 },
+  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  welcomeText: { color: '#94a3b8', fontSize: 14 },
+  dateText: { color: 'white', fontSize: 22, fontWeight: 'bold' },
+  settingsBtn: { backgroundColor: 'rgba(255,255,255,0.2)', padding: 10, borderRadius: 12 },
+  statsCard: { backgroundColor: 'rgba(255,255,255,0.1)', marginTop: 20, padding: 15, borderRadius: 20, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  statsLabel: { color: '#94a3b8', fontSize: 11, fontWeight: 'bold' },
+  statsValue: { color: 'white', fontSize: 24, fontWeight: 'bold' },
+  addDepBtn: { backgroundColor: '#8b5cf6', padding: 10, borderRadius: 10 },
+  content: { flex: 1, padding: 20 },
+  actionRow: { marginBottom: 15 },
+  mainBtn: { padding: 15, borderRadius: 15, alignItems: 'center' },
+  mainBtnText: { color: 'white', fontWeight: 'bold' },
+  sectionCard: { backgroundColor: 'white', borderRadius: 24, padding: 20, marginBottom: 20 },
+  sectionTitle: { fontSize: 17, fontWeight: 'bold', color: '#1e293b', marginBottom: 15 },
+  itemRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
+  itemText: { fontSize: 15, color: '#334155' },
+  controls: { flexDirection: 'row', alignItems: 'center' },
+  countText: { fontWeight: 'bold', color: '#3b82f6', marginRight: 10 },
+  stepBtn: { backgroundColor: '#f1f5f9', width: 35, height: 35, borderRadius: 10, justifyContent: 'center', alignItems: 'center', marginLeft: 5 },
+  modalCentrado: { flex: 1, justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.5)' },
+  modalContenido: { backgroundColor: 'white', margin: 30, padding: 30, borderRadius: 25, alignItems: 'center' },
+  input: { backgroundColor: '#f1f5f9', width: '100%', padding: 15, borderRadius: 10, marginBottom: 10 },
+  saveBtn: { backgroundColor: '#10b981', padding: 15, width: '100%', borderRadius: 10, alignItems: 'center' },
+  depItem: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 5 }
 });
