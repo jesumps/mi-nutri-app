@@ -24,14 +24,11 @@ const METAS_INICIALES = [
 
 export default function App() {
   const [registro, setRegistro] = useState({});
-  const [metas, setMetas] = useState(METAS_INICIALES);
-  const [metaVasos, setMetaVasos] = useState(10);
+  const [metas] = useState(METAS_INICIALES);
   const [diaSeleccionado, setDiaSeleccionado] = useState(new Date().toISOString().split('T')[0]);
   
   const [verCalendario, setVerCalendario] = useState(false);
   const [modalDeporte, setModalDeporte] = useState(false);
-  const [modalConfig, setModalConfig] = useState(false);
-
   const [nombreDep, setNombreDep] = useState('');
   const [kcalDep, setKcalDep] = useState('');
 
@@ -39,20 +36,23 @@ export default function App() {
 
   const cargarTodo = async () => {
     try {
-      const reg = await AsyncStorage.getItem('@nutri_data_v13');
+      const reg = await AsyncStorage.getItem('@nutri_v15');
       if (reg) setRegistro(JSON.parse(reg));
-    } catch (e) { console.log(e); }
+    } catch (e) { console.error("Error al cargar:", e); }
   };
 
   const guardar = async (nuevoReg) => {
     setRegistro(nuevoReg);
-    await AsyncStorage.setItem('@nutri_data_v13', JSON.stringify(nuevoReg));
+    try {
+      await AsyncStorage.setItem('@nutri_v15', JSON.stringify(nuevoReg));
+    } catch (e) { console.error("Error al guardar:", e); }
   };
 
   const modificarDato = (id, cambio) => {
     const n = { ...registro };
     if (!n[diaSeleccionado]) n[diaSeleccionado] = { agua: 0, deportes: [] };
-    n[diaSeleccionado][id] = Math.max(0, (n[diaSeleccionado][id] || 0) + cambio);
+    const valorActual = n[diaSeleccionado][id] || 0;
+    n[diaSeleccionado][id] = Math.max(0, valorActual + cambio);
     guardar(n);
   };
 
@@ -63,22 +63,24 @@ export default function App() {
     if (!n[diaSeleccionado].deportes) n[diaSeleccionado].deportes = [];
     
     n[diaSeleccionado].deportes.push({ nombre: nombreDep, kcal: kcalDep });
-    setNombreDep(''); setKcalDep(''); setModalDeporte(false);
+    setNombreDep(''); 
+    setKcalDep(''); 
+    setModalDeporte(false);
     guardar(n);
   };
 
   const datosHoy = registro[diaSeleccionado] || { agua: 0, deportes: [] };
-  const kcalTotales = (datosHoy.deportes || []).reduce((acc, cur) => acc + parseInt(cur.kcal || 0), 0);
+  const kcalTotales = (datosHoy.deportes || []).reduce((acc, cur) => acc + (parseInt(cur.kcal) || 0), 0);
 
   return (
     <SafeAreaView style={styles.container}>
       <LinearGradient colors={['#1e293b', '#0f172a']} style={styles.header}>
         <View style={styles.headerRow}>
           <View>
-            <Text style={styles.welcomeText}>Nutri Dashboard</Text>
+            <Text style={styles.welcomeText}>Mi Progreso</Text>
             <Text style={styles.dateText}>{diaSeleccionado}</Text>
           </View>
-          <TouchableOpacity onPress={() => setModalConfig(true)} style={styles.settingsBtn}>
+          <TouchableOpacity onPress={() => console.log("Config press")} style={styles.settingsBtn}>
             <Text style={{fontSize: 24}}>⚙️</Text>
           </TouchableOpacity>
         </View>
@@ -94,36 +96,33 @@ export default function App() {
       </LinearGradient>
 
       <ScrollView style={styles.content}>
-        <View style={styles.actionRow}>
-          <TouchableOpacity style={[styles.mainBtn, {backgroundColor: '#3b82f6'}]} onPress={() => setVerCalendario(!verCalendario)}>
-            <Text style={styles.mainBtnText}>📅 Calendario</Text>
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity style={styles.calBtn} onPress={() => setVerCalendario(!verCalendario)}>
+          <Text style={styles.calBtnText}>📅 {verCalendario ? 'Cerrar Calendario' : 'Cambiar Día'}</Text>
+        </TouchableOpacity>
 
         {verCalendario && (
           <Calendar 
-            onDayPress={day => {setDiaSeleccionado(day.dateString); setVerCalendario(false);}}
-            style={styles.calendarCard}
+            onDayPress={day => { setDiaSeleccionado(day.dateString); setVerCalendario(false); }}
+            theme={{ borderRadius: 15 }}
+            style={{ borderRadius: 15, marginBottom: 15 }}
           />
         )}
 
         <View style={styles.sectionCard}>
           <Text style={styles.sectionTitle}>Pauta Diaria</Text>
-          {/* Agua */}
           <View style={styles.itemRow}>
-            <Text style={styles.itemText}>💧 Agua</Text>
+            <Text style={styles.itemText}>💧 Agua (vasos)</Text>
             <View style={styles.controls}>
-              <Text style={styles.countText}>{datosHoy.agua || 0}/{metaVasos}</Text>
+              <Text style={styles.countText}>{datosHoy.agua || 0}</Text>
               <TouchableOpacity onPress={() => modificarDato('agua', -1)} style={styles.stepBtn}><Text>-</Text></TouchableOpacity>
               <TouchableOpacity onPress={() => modificarDato('agua', 1)} style={styles.stepBtn}><Text>+</Text></TouchableOpacity>
             </View>
           </View>
-          {/* Comidas */}
           {metas.map(m => (
             <View key={m.id} style={styles.itemRow}>
               <Text style={styles.itemText}>{m.emoji} {m.nombre}</Text>
               <View style={styles.controls}>
-                <Text style={styles.countText}>{(datosHoy[m.id] || 0)}/{m.meta}</Text>
+                <Text style={styles.countText}>{datosHoy[m.id] || 0}</Text>
                 <TouchableOpacity onPress={() => modificarDato(m.id, -1)} style={styles.stepBtn}><Text>-</Text></TouchableOpacity>
                 <TouchableOpacity onPress={() => modificarDato(m.id, 1)} style={styles.stepBtn}><Text>+</Text></TouchableOpacity>
               </View>
@@ -131,30 +130,27 @@ export default function App() {
           ))}
         </View>
 
-        {/* Lista de Deportes */}
         {datosHoy.deportes && datosHoy.deportes.length > 0 && (
           <View style={styles.sectionCard}>
-            <Text style={styles.sectionTitle}>Actividad Física</Text>
-            {datosHoy.deportes.map((d, idx) => (
-              <View key={idx} style={styles.depItem}><Text>🏃 {d.nombre}</Text><Text style={{fontWeight:'bold'}}>-{d.kcal} kcal</Text></View>
+            <Text style={styles.sectionTitle}>Actividad Registrada</Text>
+            {datosHoy.deportes.map((d, i) => (
+              <View key={i} style={styles.depItem}><Text>🏃 {d.nombre}</Text><Text style={{fontWeight:'bold'}}>-{d.kcal} kcal</Text></View>
             ))}
           </View>
         )}
       </ScrollView>
 
-      {/* MODAL DEPORTE */}
-      <Modal visible={modalDeporte} animationType="slide" transparent={true}>
+      <Modal visible={modalDeporte} animationType="fade" transparent={true}>
         <View style={styles.modalCentrado}>
           <View style={styles.modalContenido}>
-            <Text style={styles.modalHeader}>Registrar Deporte</Text>
-            <TextInput placeholder="Ej: Running" style={styles.input} value={nombreDep} onChangeText={setNombreDep} />
-            <TextInput placeholder="Calorías" style={styles.input} keyboardType="numeric" value={kcalDep} onChangeText={setKcalDep} />
-            <TouchableOpacity style={styles.saveBtn} onPress={agregarDeporte}><Text style={{color:'white'}}>Agregar</Text></TouchableOpacity>
-            <TouchableOpacity onPress={() => setModalDeporte(false)}><Text style={{marginTop:15, color:'red'}}>Cerrar</Text></TouchableOpacity>
+            <Text style={{fontSize: 18, fontWeight: 'bold', marginBottom: 15}}>Registrar Deporte</Text>
+            <TextInput placeholder="¿Qué hiciste?" style={styles.input} value={nombreDep} onChangeText={setNombreDep} />
+            <TextInput placeholder="Calorías aprox" style={styles.input} keyboardType="numeric" value={kcalDep} onChangeText={setKcalDep} />
+            <TouchableOpacity style={styles.saveBtn} onPress={agregarDeporte}><Text style={{color:'white', fontWeight: 'bold'}}>GUARDAR</Text></TouchableOpacity>
+            <TouchableOpacity onPress={() => setModalDeporte(false)}><Text style={{marginTop:15, color:'red'}}>Cancelar</Text></TouchableOpacity>
           </View>
         </View>
       </Modal>
-
     </SafeAreaView>
   );
 }
@@ -163,27 +159,26 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f1f5f9' },
   header: { padding: 25, paddingTop: 50, borderBottomLeftRadius: 30, borderBottomRightRadius: 30 },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  welcomeText: { color: '#94a3b8', fontSize: 14 },
-  dateText: { color: 'white', fontSize: 22, fontWeight: 'bold' },
+  welcomeText: { color: '#94a3b8', fontSize: 13 },
+  dateText: { color: 'white', fontSize: 20, fontWeight: 'bold' },
   settingsBtn: { backgroundColor: 'rgba(255,255,255,0.2)', padding: 10, borderRadius: 12 },
   statsCard: { backgroundColor: 'rgba(255,255,255,0.1)', marginTop: 20, padding: 15, borderRadius: 20, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  statsLabel: { color: '#94a3b8', fontSize: 11, fontWeight: 'bold' },
+  statsLabel: { color: '#94a3b8', fontSize: 11, fontWeight: 'bold', textTransform: 'uppercase' },
   statsValue: { color: 'white', fontSize: 24, fontWeight: 'bold' },
-  addDepBtn: { backgroundColor: '#8b5cf6', padding: 10, borderRadius: 10 },
+  addDepBtn: { backgroundColor: '#8b5cf6', paddingHorizontal: 15, paddingVertical: 10, borderRadius: 12 },
   content: { flex: 1, padding: 20 },
-  actionRow: { marginBottom: 15 },
-  mainBtn: { padding: 15, borderRadius: 15, alignItems: 'center' },
-  mainBtnText: { color: 'white', fontWeight: 'bold' },
-  sectionCard: { backgroundColor: 'white', borderRadius: 24, padding: 20, marginBottom: 20 },
-  sectionTitle: { fontSize: 17, fontWeight: 'bold', color: '#1e293b', marginBottom: 15 },
-  itemRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
-  itemText: { fontSize: 15, color: '#334155' },
+  calBtn: { backgroundColor: 'white', padding: 15, borderRadius: 15, alignItems: 'center', marginBottom: 15, borderWidth: 1, borderColor: '#e2e8f0' },
+  calBtnText: { color: '#3b82f6', fontWeight: 'bold' },
+  sectionCard: { backgroundColor: 'white', borderRadius: 24, padding: 20, marginBottom: 20, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 10, elevation: 2 },
+  sectionTitle: { fontSize: 16, fontWeight: 'bold', color: '#1e293b', marginBottom: 15 },
+  itemRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#f8fafc' },
+  itemText: { fontSize: 14, color: '#475569' },
   controls: { flexDirection: 'row', alignItems: 'center' },
-  countText: { fontWeight: 'bold', color: '#3b82f6', marginRight: 10 },
-  stepBtn: { backgroundColor: '#f1f5f9', width: 35, height: 35, borderRadius: 10, justifyContent: 'center', alignItems: 'center', marginLeft: 5 },
-  modalCentrado: { flex: 1, justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.5)' },
-  modalContenido: { backgroundColor: 'white', margin: 30, padding: 30, borderRadius: 25, alignItems: 'center' },
-  input: { backgroundColor: '#f1f5f9', width: '100%', padding: 15, borderRadius: 10, marginBottom: 10 },
-  saveBtn: { backgroundColor: '#10b981', padding: 15, width: '100%', borderRadius: 10, alignItems: 'center' },
-  depItem: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 5 }
+  countText: { fontWeight: 'bold', color: '#1e293b', fontSize: 16, marginRight: 12 },
+  stepBtn: { backgroundColor: '#f1f5f9', width: 38, height: 38, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginLeft: 6 },
+  modalCentrado: { flex: 1, justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.6)' },
+  modalContenido: { backgroundColor: 'white', margin: 30, padding: 25, borderRadius: 25, alignItems: 'center' },
+  input: { backgroundColor: '#f1f5f9', width: '100%', padding: 15, borderRadius: 12, marginBottom: 12 },
+  saveBtn: { backgroundColor: '#10b981', padding: 15, width: '100%', borderRadius: 12, alignItems: 'center' },
+  depItem: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 }
 });
