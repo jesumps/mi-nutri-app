@@ -47,7 +47,6 @@ export default function App() {
 
   const cargarTodo = async () => {
     try {
-      // VOLVEMOS A V12 PARA RECUPERAR TUS DATOS
       const reg = await AsyncStorage.getItem('@nutri_v12');
       const met = await AsyncStorage.getItem('@nutri_metas_v12');
       const con = await AsyncStorage.getItem('@nutri_controles_v12');
@@ -89,14 +88,41 @@ export default function App() {
     <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{flex:1}}>
         
+        {/* MODAL CONFIG - MOVIDO ARRIBA PARA PRIORIDAD */}
+        <Modal visible={modalConfig} animationType="slide" transparent={false}>
+          <SafeAreaView style={{flex:1, backgroundColor: '#f8fafc'}}>
+            <ScrollView style={{padding: 30}}>
+              <Text style={styles.modalHeader}>Configurar Metas</Text>
+              <Text style={styles.inputLabel}>Agua (Vasos):</Text>
+              <TextInput style={styles.modalInput} keyboardType="numeric" defaultValue={metaVasos.toString()} onChangeText={v => setMetaVasos(parseInt(v)||0)}/>
+              {metas.map(m => (
+                <View key={m.id} style={styles.configRow}><Text>{m.emoji} {m.nombre}</Text>
+                  <TextInput style={styles.miniInput} keyboardType="numeric" defaultValue={m.meta.toString()} onChangeText={v => {
+                    const nm = metas.map(x => x.id === m.id ? {...x, meta: parseInt(v)||0} : x); setMetas(nm);
+                  }}/>
+                </View>
+              ))}
+              <TouchableOpacity style={styles.saveBtn} onPress={() => {guardarTodo(null, metas); setModalConfig(false);}}><Text style={styles.saveBtnText}>GUARDAR</Text></TouchableOpacity>
+              <TouchableOpacity onPress={() => setModalConfig(false)} style={{marginTop: 20}}><Text style={styles.cancelText}>Cerrar</Text></TouchableOpacity>
+            </ScrollView>
+          </SafeAreaView>
+        </Modal>
+
         <LinearGradient colors={['#1e293b', '#0f172a']} style={styles.header}>
           <View style={styles.headerRow}>
             <View>
               <Text style={styles.welcomeText}>Nutri Dashboard</Text>
               <Text style={styles.dateText}>{diaSeleccionado}</Text>
             </View>
-            <TouchableOpacity onPress={() => setModalConfig(true)} style={styles.settingsBtn}>
-              <Text style={{fontSize: 24}}>⚙️</Text>
+            
+            {/* BOTÓN REFORZADO CON ÁREA DE TOQUE GRANDE */}
+            <TouchableOpacity 
+              onPress={() => setModalConfig(true)} 
+              style={styles.settingsBtn}
+              activeOpacity={0.6}
+              hitSlop={{top: 30, bottom: 30, left: 30, right: 30}}
+            >
+              <Text style={{fontSize: 28}}>⚙️</Text>
             </TouchableOpacity>
           </View>
 
@@ -159,7 +185,6 @@ export default function App() {
             ))}
           </View>
 
-          {/* SECCIÓN DEPORTES RESTAURADA */}
           <View style={styles.sectionCard}>
             <View style={styles.headerRow}>
               <Text style={styles.sectionTitle}>Actividad Física</Text>
@@ -172,7 +197,6 @@ export default function App() {
             ))}
           </View>
 
-          {/* SECCIÓN PESO RESTAURADA */}
           <View style={[styles.sectionCard, {marginBottom: 40}]}>
             <Text style={styles.sectionTitle}>Evolución (Historial)</Text>
             {controles.map((c, i) => (
@@ -184,25 +208,7 @@ export default function App() {
           </View>
         </ScrollView>
 
-        {/* MODAL CONFIG */}
-        <Modal visible={modalConfig} animationType="slide">
-          <SafeAreaView style={{flex:1, backgroundColor: '#f8fafc'}}><ScrollView style={{padding: 30}}>
-            <Text style={styles.modalHeader}>Configurar Metas</Text>
-            <Text style={styles.inputLabel}>Agua (Vasos):</Text>
-            <TextInput style={styles.modalInput} keyboardType="numeric" defaultValue={metaVasos.toString()} onChangeText={v => setMetaVasos(parseInt(v)||0)}/>
-            {metas.map(m => (
-              <View key={m.id} style={styles.configRow}><Text>{m.emoji} {m.nombre}</Text>
-                <TextInput style={styles.miniInput} keyboardType="numeric" defaultValue={m.meta.toString()} onChangeText={v => {
-                  const nm = metas.map(x => x.id === m.id ? {...x, meta: parseInt(v)||0} : x); setMetas(nm);
-                }}/>
-              </View>
-            ))}
-            <TouchableOpacity style={styles.saveBtn} onPress={() => {guardarTodo(null, metas); setModalConfig(false);}}><Text style={styles.saveBtnText}>GUARDAR</Text></TouchableOpacity>
-            <TouchableOpacity onPress={() => setModalConfig(false)}><Text style={styles.cancelText}>Cerrar</Text></TouchableOpacity>
-          </ScrollView></SafeAreaView>
-        </Modal>
-
-        {/* MODAL PESO DECIMAL */}
+        {/* MODAL PESO */}
         <Modal visible={modalControl} transparent animationType="fade">
           <View style={styles.overlay}><View style={styles.alertBox}>
             <Text style={styles.modalHeader}>Nuevo Control</Text>
@@ -240,11 +246,19 @@ export default function App() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f1f5f9' },
-  header: { padding: 25, paddingTop: 40, borderBottomLeftRadius: 30, borderBottomRightRadius: 30 },
+  header: { padding: 25, paddingTop: 40, borderBottomLeftRadius: 35, borderBottomRightRadius: 35, zIndex: 1 },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   welcomeText: { color: '#94a3b8', fontSize: 14, fontWeight: '600' },
   dateText: { color: 'white', fontSize: 22, fontWeight: 'bold' },
-  settingsBtn: { backgroundColor: 'rgba(255,255,255,0.15)', padding: 12, borderRadius: 15 },
+  settingsBtn: { 
+    backgroundColor: 'rgba(255,255,255,0.2)', 
+    padding: 10, 
+    borderRadius: 15,
+    minWidth: 50,
+    minHeight: 50,
+    justifyContent: 'center',
+    alignItems: 'center'
+  },
   statsCard: { backgroundColor: 'rgba(255,255,255,0.1)', marginTop: 20, padding: 20, borderRadius: 20, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   statsLabel: { color: '#94a3b8', fontSize: 12, fontWeight: 'bold' },
   statsValue: { color: 'white', fontSize: 28, fontWeight: 'bold' },
