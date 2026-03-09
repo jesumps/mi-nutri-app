@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useState } from 'react';
 import {
-  Modal,
+  Dimensions, Platform,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -11,155 +11,162 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
-import { Calendar } from 'react-native-calendars';
+import { PieChart } from 'react-native-chart-kit';
 
-const METAS_INICIALES = [
-  { id: 'proteinas', nombre: 'Proteínas', emoji: '🥩', meta: 8 },
-  { id: 'cereales', nombre: 'Cereales', emoji: '🍞', meta: 5 },
-  { id: 'grasas', nombre: 'Grasas', emoji: '🥑', meta: 3 },
-  { id: 'frutas', nombre: 'Frutas', emoji: '🍎', meta: 3 },
-  { id: 'verduras', nombre: 'Verduras', emoji: '🥦', meta: 4 },
-  { id: 'lacteos', nombre: 'Lácteos', emoji: '🥛', meta: 2 },
-];
+const screenWidth = Dimensions.get("window").width;
 
 export default function App() {
+  const hoy = new Date().toISOString().split('T')[0];
+  const [pantalla, setPantalla] = useState('registro');
+  
+  // Estados principales
   const [registro, setRegistro] = useState({});
-  const [diaSeleccionado, setDiaSeleccionado] = useState(new Date().toISOString().split('T')[0]);
-  const [verCalendario, setVerCalendario] = useState(false);
-  const [modalDeporte, setModalDeporte] = useState(false);
-  const [nombreDep, setNombreDep] = useState('');
-  const [kcalDep, setKcalDep] = useState('');
+  const [metas, setMetas] = useState({
+    proteinas: 10, cereales: 8, grasas: 4, frutas: 4, verduras: 4, lacteos: 3, agua: 10
+  });
+  const [historialPeso, setHistorialPeso] = useState([]);
+  const [nuevoPeso, setNuevoPeso] = useState('');
 
-  useEffect(() => { 
-    cargarTodo(); 
+  // Cargar datos al iniciar
+  useEffect(() => {
+    const cargarDatos = async () => {
+      try {
+        const r = await AsyncStorage.getItem('@nutri_reg_v1');
+        const m = await AsyncStorage.getItem('@nutri_metas_v1');
+        const p = await AsyncStorage.getItem('@nutri_peso_v1');
+        if (r) setRegistro(JSON.parse(r));
+        if (m) setMetas(JSON.parse(m));
+        if (p) setHistorialPeso(JSON.parse(p));
+      } catch (e) { console.log(e); }
+    };
+    cargarDatos();
   }, []);
 
-  const cargarTodo = async () => {
-    try {
-      const reg = await AsyncStorage.getItem('@nutri_v20');
-      if (reg) setRegistro(JSON.parse(reg));
-    } catch (e) { console.log(e); }
+  const guardar = async (clave, valor) => {
+    await AsyncStorage.setItem(clave, JSON.stringify(valor));
   };
 
-  const guardar = async (nuevoReg) => {
-    setRegistro(nuevoReg);
-    await AsyncStorage.setItem('@nutri_v20', JSON.stringify(nuevoReg));
-  };
-
-  const modificarDato = (id, cambio) => {
+  // Lógica de Registro
+  const modRegistro = (id, cambio) => {
     const n = { ...registro };
-    if (!n[diaSeleccionado]) n[diaSeleccionado] = { agua: 0, deportes: [] };
-    const actual = n[diaSeleccionado][id] || 0;
-    n[diaSeleccionado][id] = Math.max(0, actual + cambio);
-    guardar(n);
+    if (!n[hoy]) n[hoy] = { proteinas: 0, cereales: 0, grasas: 0, frutas: 0, verduras: 0, lacteos: 0, agua: 0 };
+    n[hoy][id] = Math.max(0, (n[hoy][id] || 0) + cambio);
+    setRegistro(n);
+    guardar('@nutri_reg_v1', n);
   };
 
-  const agregarDeporte = () => {
-    if (!nombreDep || !kcalDep) return;
-    const n = { ...registro };
-    if (!n[diaSeleccionado]) n[diaSeleccionado] = { agua: 0, deportes: [] };
-    if (!n[diaSeleccionado].deportes) n[diaSeleccionado].deportes = [];
-    n[diaSeleccionado].deportes.push({ nombre: nombreDep, kcal: kcalDep });
-    setNombreDep(''); setKcalDep(''); setModalDeporte(false);
-    guardar(n);
+  // Lógica de Metas
+  const modMeta = (id, cambio) => {
+    const n = { ...metas, [id]: Math.max(1, metas[id] + cambio) };
+    setMetas(n);
+    guardar('@nutri_metas_v1', n);
   };
 
-  const datosHoy = registro[diaSeleccionado] || { agua: 0, deportes: [] };
-  const kcalTotales = (datosHoy.deportes || []).reduce((acc, cur) => acc + (parseInt(cur.kcal) || 0), 0);
+  // Lógica de Peso
+  const agregarPeso = () => {
+    if (!nuevoPeso) return;
+    const n = [{ fecha: hoy, valor: nuevoPeso }, ...historialPeso].slice(0, 10);
+    setHistorialPeso(n);
+    setNuevoPeso('');
+    guardar('@nutri_peso_v1', n);
+  };
 
+  const datosHoy = registro[hoy] || { proteinas: 0, cereales: 0, grasas: 0, frutas: 0, verduras: 0, lacteos: 0, agua: 0 };
+
+  // Renderizado de Pantallas
   return (
     <SafeAreaView style={styles.container}>
-      <LinearGradient colors={['#1e293b', '#0f172a']} style={styles.header}>
-        <View style={styles.headerRow}>
-          <Text style={styles.dateText}>📅 {diaSeleccionado}</Text>
-          <TouchableOpacity style={styles.settingsBtn} onPress={() => setVerCalendario(!verCalendario)}>
-            <Text style={{color:'white'}}>Cambiar Fecha</Text>
-          </TouchableOpacity>
-        </View>
-        
-        <View style={styles.statsCard}>
-          <View>
-            <Text style={styles.statsLabel}>QUEMADAS HOY</Text>
-            <Text style={styles.statsValue}>{kcalTotales} kcal</Text>
-          </View>
-          <TouchableOpacity 
-            activeOpacity={0.7}
-            style={styles.addDepBtn} 
-            onPress={() => setModalDeporte(true)}
-          >
-            <Text style={{color: 'white', fontWeight: 'bold'}}>+ DEPORTE</Text>
-          </TouchableOpacity>
-        </View>
+      <LinearGradient colors={['#4f46e5', '#3730a3']} style={styles.header}>
+        <Text style={styles.headerTitle}>NutriApp 2026</Text>
+        <Text style={styles.headerDate}>{hoy}</Text>
       </LinearGradient>
 
       <ScrollView style={styles.content}>
-        {verCalendario && (
-          <Calendar 
-            onDayPress={day => { setDiaSeleccionado(day.dateString); setVerCalendario(false); }}
-            style={styles.calendar}
-          />
+        {pantalla === 'registro' && (
+          <View>
+            <Text style={styles.sectionTitle}>Mi Consumo de Hoy</Text>
+            {Object.keys(metas).map(id => (
+              <View key={id} style={styles.card}>
+                <Text style={styles.cardLabel}>{id.toUpperCase()}</Text>
+                <View style={styles.row}>
+                  <TouchableOpacity onPress={() => modRegistro(id, -1)} style={styles.btnMod}><Text style={styles.btnText}>-</Text></TouchableOpacity>
+                  <Text style={styles.valText}>{datosHoy[id] || 0} / {metas[id]}</Text>
+                  <TouchableOpacity onPress={() => modRegistro(id, 1)} style={styles.btnMod}><Text style={styles.btnText}>+</Text></TouchableOpacity>
+                </View>
+              </View>
+            ))}
+          </View>
         )}
 
-        <View style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>Mi Pauta</Text>
-          <View style={styles.itemRow}>
-            <Text>💧 Agua (vasos)</Text>
-            <View style={styles.controls}>
-              <TouchableOpacity onPress={() => modificarDato('agua', -1)} style={styles.stepBtn}><Text>-</Text></TouchableOpacity>
-              <Text style={styles.countText}>{datosHoy.agua || 0}</Text>
-              <TouchableOpacity onPress={() => modificarDato('agua', 1)} style={styles.stepBtn}><Text>+</Text></TouchableOpacity>
+        {pantalla === 'resumen' && (
+          <View>
+            <Text style={styles.sectionTitle}>Análisis del Día</Text>
+            <PieChart
+              data={[
+                { name: 'Prot', population: datosHoy.proteinas, color: '#f87171', legendFontColor: '#7f7f7f' },
+                { name: 'Cer', population: datosHoy.cereales, color: '#fbbf24', legendFontColor: '#7f7f7f' },
+                { name: 'Gra', population: datosHoy.grasas, color: '#34d399', legendFontColor: '#7f7f7f' },
+              ]}
+              width={screenWidth - 40} height={200}
+              chartConfig={{ color: (opacity = 1) => `rgba(0,0,0, ${opacity})` }}
+              accessor={"population"} backgroundColor={"transparent"} paddingLeft={"15"}
+            />
+            <View style={styles.card}>
+              <Text style={styles.sectionTitle}>Historial de Peso</Text>
+              <View style={styles.row}>
+                <TextInput placeholder="Ej: 75.5" keyboardType="numeric" style={styles.input} value={nuevoPeso} onChangeText={setNuevoPeso} />
+                <TouchableOpacity onPress={agregarPeso} style={styles.btnSave}><Text style={{color:'white'}}>Anotar</Text></TouchableOpacity>
+              </View>
+              {historialPeso.map((p, i) => (
+                <Text key={i} style={styles.pesoItem}>{p.fecha}: {p.valor} kg</Text>
+              ))}
             </View>
           </View>
+        )}
 
-          {METAS_INICIALES.map(m => (
-            <View key={m.id} style={styles.itemRow}>
-              <Text>{m.emoji} {m.nombre}</Text>
-              <View style={styles.controls}>
-                <TouchableOpacity onPress={() => modificarDato(m.id, -1)} style={styles.stepBtn}><Text>-</Text></TouchableOpacity>
-                <Text style={styles.countText}>{datosHoy[m.id] || 0}</Text>
-                <TouchableOpacity onPress={() => modificarDato(m.id, 1)} style={styles.stepBtn}><Text>+</Text></TouchableOpacity>
+        {pantalla === 'metas' && (
+          <View>
+            <Text style={styles.sectionTitle}>Configurar mis Objetivos</Text>
+            {Object.keys(metas).map(id => (
+              <View key={id} style={styles.card}>
+                <Text style={styles.cardLabel}>META {id.toUpperCase()}</Text>
+                <View style={styles.row}>
+                  <TouchableOpacity onPress={() => modMeta(id, -1)} style={[styles.btnMod, {backgroundColor:'#64748b'}]}><Text style={styles.btnText}>-</Text></TouchableOpacity>
+                  <Text style={styles.valText}>{metas[id]}</Text>
+                  <TouchableOpacity onPress={() => modMeta(id, 1)} style={[styles.btnMod, {backgroundColor:'#64748b'}]}><Text style={styles.btnText}>+</Text></TouchableOpacity>
+                </View>
               </View>
-            </View>
-          ))}
-        </View>
+            ))}
+          </View>
+        )}
       </ScrollView>
 
-      <Modal visible={modalDeporte} animationType="slide" transparent={true}>
-        <View style={styles.modalBackdrop}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Nuevo Deporte</Text>
-            <TextInput placeholder="Actividad" style={styles.input} value={nombreDep} onChangeText={setNombreDep} />
-            <TextInput placeholder="Calorías" keyboardType="numeric" style={styles.input} value={kcalDep} onChangeText={setKcalDep} />
-            <TouchableOpacity style={styles.btnSave} onPress={agregarDeporte}><Text style={{color:'white'}}>Guardar</Text></TouchableOpacity>
-            <TouchableOpacity onPress={() => setModalDeporte(false)}><Text style={{color:'red', marginTop: 15}}>Cancelar</Text></TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
+      {/* Menú Inferior */}
+      <View style={styles.navbar}>
+        <TouchableOpacity onPress={() => setPantalla('registro')} style={styles.navItem}><Text style={{color: pantalla === 'registro' ? '#4f46e5' : '#94a3b8'}}>📋 Registro</Text></TouchableOpacity>
+        <TouchableOpacity onPress={() => setPantalla('resumen')} style={styles.navItem}><Text style={{color: pantalla === 'resumen' ? '#4f46e5' : '#94a3b8'}}>📊 Resumen</Text></TouchableOpacity>
+        <TouchableOpacity onPress={() => setPantalla('metas')} style={styles.navItem}><Text style={{color: pantalla === 'metas' ? '#4f46e5' : '#94a3b8'}}>🎯 Metas</Text></TouchableOpacity>
+      </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f1f5f9' },
-  header: { padding: 20, paddingTop: 50, borderBottomLeftRadius: 30, borderBottomRightRadius: 30 },
-  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  dateText: { color: 'white', fontSize: 18, fontWeight: 'bold' },
-  settingsBtn: { backgroundColor: 'rgba(255,255,255,0.2)', padding: 8, borderRadius: 10 },
-  statsCard: { backgroundColor: 'rgba(255,255,255,0.1)', marginTop: 20, padding: 15, borderRadius: 20, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  statsLabel: { color: '#94a3b8', fontSize: 10, fontWeight: 'bold' },
-  statsValue: { color: 'white', fontSize: 24, fontWeight: 'bold' },
-  addDepBtn: { backgroundColor: '#8b5cf6', padding: 12, borderRadius: 12, elevation: 5 },
+  container: { flex: 1, backgroundColor: '#f8fafc' },
+  header: { padding: 25, paddingTop: Platform.OS === 'ios' ? 20 : 50, alignItems: 'center' },
+  headerTitle: { color: 'white', fontSize: 24, fontWeight: 'bold' },
+  headerDate: { color: 'white', opacity: 0.8 },
   content: { flex: 1, padding: 20 },
-  calendar: { borderRadius: 15, marginBottom: 15, elevation: 4 },
-  sectionCard: { backgroundColor: 'white', borderRadius: 20, padding: 20, shadowOpacity: 0.1, elevation: 3 },
-  sectionTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 15 },
-  itemRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
-  controls: { flexDirection: 'row', alignItems: 'center' },
-  countText: { fontWeight: 'bold', width: 30, textAlign: 'center' },
-  stepBtn: { backgroundColor: '#e2e8f0', width: 35, height: 35, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
-  modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center' },
-  modalContent: { backgroundColor: 'white', margin: 30, padding: 25, borderRadius: 25, alignItems: 'center' },
-  modalTitle: { fontSize: 20, fontWeight: 'bold', marginBottom: 20 },
-  input: { backgroundColor: '#f1f5f9', width: '100%', padding: 15, borderRadius: 12, marginBottom: 10 },
-  btnSave: { backgroundColor: '#10b981', width: '100%', padding: 15, borderRadius: 12, alignItems: 'center' }
+  sectionTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 15, color: '#1e293b' },
+  card: { backgroundColor: 'white', padding: 15, borderRadius: 15, marginBottom: 10, elevation: 2, shadowColor: '#000', shadowOpacity: 0.05 },
+  cardLabel: { fontSize: 12, fontWeight: 'bold', color: '#64748b', marginBottom: 5 },
+  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  btnMod: { backgroundColor: '#4f46e5', width: 40, height: 40, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
+  btnText: { color: 'white', fontSize: 20, fontWeight: 'bold' },
+  valText: { fontSize: 18, fontWeight: 'bold' },
+  navbar: { flexDirection: 'row', height: 70, backgroundColor: 'white', borderTopWidth: 1, borderTopColor: '#e2e8f0', justifyContent: 'space-around', alignItems: 'center' },
+  navItem: { alignItems: 'center' },
+  input: { borderBottomWidth: 1, borderBottomColor: '#cbd5e1', width: '60%', padding: 5 },
+  btnSave: { backgroundColor: '#10b981', padding: 10, borderRadius: 10 },
+  pesoItem: { marginTop: 5, color: '#475569' }
 });
