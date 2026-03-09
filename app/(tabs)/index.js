@@ -47,21 +47,20 @@ export default function App() {
 
   const cargarTodo = async () => {
     try {
-      const reg = await AsyncStorage.getItem('@nutri_v15');
-      const met = await AsyncStorage.getItem('@nutri_metas_v15');
-      const con = await AsyncStorage.getItem('@nutri_controles_v15');
+      // VOLVEMOS A V12 PARA RECUPERAR TUS DATOS
+      const reg = await AsyncStorage.getItem('@nutri_v12');
+      const met = await AsyncStorage.getItem('@nutri_metas_v12');
+      const con = await AsyncStorage.getItem('@nutri_controles_v12');
       if (reg) setRegistro(JSON.parse(reg));
       if (met) setMetas(JSON.parse(met));
       if (con) setControles(JSON.parse(con));
-    } catch (e) { console.log("Error de carga", e); }
+    } catch (e) { console.log(e); }
   };
 
   const guardarTodo = async (nReg, nMet, nCon) => {
-    try {
-      if (nReg) { setRegistro(nReg); await AsyncStorage.setItem('@nutri_v15', JSON.stringify(nReg)); }
-      if (nMet) { setMetas(nMet); await AsyncStorage.setItem('@nutri_metas_v15', JSON.stringify(nMet)); }
-      if (nCon) { setControles(nCon); await AsyncStorage.setItem('@nutri_controles_v15', JSON.stringify(nCon)); }
-    } catch (e) { console.log("Error al guardar", e); }
+    if (nReg) { setRegistro(nReg); await AsyncStorage.setItem('@nutri_v12', JSON.stringify(nReg)); }
+    if (nMet) { setMetas(nMet); await AsyncStorage.setItem('@nutri_metas_v12', JSON.stringify(nMet)); }
+    if (nCon) { setControles(nCon); await AsyncStorage.setItem('@nutri_controles_v12', JSON.stringify(nCon)); }
   };
 
   const modificarDato = (id, cambio) => {
@@ -90,18 +89,13 @@ export default function App() {
     <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{flex:1}}>
         
-        {/* CABECERA PREMIUM */}
         <LinearGradient colors={['#1e293b', '#0f172a']} style={styles.header}>
           <View style={styles.headerRow}>
             <View>
-              <Text style={styles.welcomeText}>Mi Progreso</Text>
+              <Text style={styles.welcomeText}>Nutri Dashboard</Text>
               <Text style={styles.dateText}>{diaSeleccionado}</Text>
             </View>
-            <TouchableOpacity 
-              onPress={() => setModalConfig(true)} 
-              style={styles.settingsBtn}
-              activeOpacity={0.7}
-            >
+            <TouchableOpacity onPress={() => setModalConfig(true)} style={styles.settingsBtn}>
               <Text style={{fontSize: 24}}>⚙️</Text>
             </TouchableOpacity>
           </View>
@@ -111,26 +105,17 @@ export default function App() {
               <Text style={styles.statsLabel}>Adherencia Mensual</Text>
               <Text style={styles.statsValue}>{calcularAdherencia().toFixed(1)}%</Text>
             </View>
-            <Progress.Circle 
-              size={60} 
-              progress={calcularAdherencia()/100} 
-              color="#10b981" 
-              unfilledColor="rgba(255,255,255,0.1)" 
-              borderWidth={0} 
-              thickness={6}
-            />
+            <Progress.Circle size={60} progress={calcularAdherencia()/100} color="#10b981" unfilledColor="rgba(255,255,255,0.1)" borderWidth={0} thickness={6} />
           </View>
         </LinearGradient>
 
         <ScrollView showsVerticalScrollIndicator={false} style={styles.content}>
-          
-          {/* ACCIONES RÁPIDAS */}
           <View style={styles.actionRow}>
             <TouchableOpacity style={[styles.mainBtn, {backgroundColor: '#3b82f6'}]} onPress={() => setVerCalendario(!verCalendario)}>
               <Text style={styles.mainBtnText}>📅 Calendario</Text>
             </TouchableOpacity>
             <TouchableOpacity style={[styles.mainBtn, {backgroundColor: '#8b5cf6'}]} onPress={() => setModalControl(true)}>
-              <Text style={styles.mainBtnText}>⚖️ Nuevo Peso</Text>
+              <Text style={styles.mainBtnText}>⚖️ Mi Peso</Text>
             </TouchableOpacity>
           </View>
 
@@ -138,24 +123,18 @@ export default function App() {
             <Calendar 
               onDayPress={day => {setDiaSeleccionado(day.dateString); setVerCalendario(false);}}
               markedDates={{[diaSeleccionado]: {selected: true, selectedColor: '#3b82f6'}}}
-              theme={{ borderRadius: 20, calendarBackground: '#ffffff' }}
               style={styles.calendarCard}
             />
           )}
 
-          {/* CONTENIDO DIARIO */}
           <View style={styles.sectionCard}>
-            <Text style={styles.sectionTitle}>Consumo de Hoy</Text>
-            
-            {/* Fila Agua */}
+            <Text style={styles.sectionTitle}>Pauta Diaria</Text>
             <View style={styles.itemRow}>
               <View style={styles.itemInfo}>
-                <TouchableOpacity onPress={() => {
-                  const n = {...registro}; n[diaSeleccionado].agua = 0; guardarTodo(n);
-                }}>
+                <TouchableOpacity onPress={() => {const n = {...registro}; n[diaSeleccionado].agua = 0; guardarTodo(n);}}>
                   <Text style={styles.deleteIcon}>🗑️</Text>
                 </TouchableOpacity>
-                <Text style={styles.itemText}>💧 Agua (Vasos)</Text>
+                <Text style={styles.itemText}>💧 Agua</Text>
               </View>
               <View style={styles.controls}>
                 <Text style={styles.countText}>{datosHoy.agua}/{metaVasos}</Text>
@@ -163,20 +142,16 @@ export default function App() {
                 <TouchableOpacity onPress={() => modificarDato('agua', 1)} style={styles.stepBtn}><Text>+</Text></TouchableOpacity>
               </View>
             </View>
-
-            {/* Metas Dinámicas */}
             {metas.map(m => (
               <View key={m.id} style={styles.itemRow}>
                 <View style={styles.itemInfo}>
-                  <TouchableOpacity onPress={() => {
-                    const n = {...registro}; n[diaSeleccionado][m.id] = 0; guardarTodo(n);
-                  }}>
+                  <TouchableOpacity onPress={() => {const n = {...registro}; n[diaSeleccionado][m.id] = 0; guardarTodo(n);}}>
                     <Text style={styles.deleteIcon}>🗑️</Text>
                   </TouchableOpacity>
                   <Text style={styles.itemText}>{m.emoji} {m.nombre}</Text>
                 </View>
                 <View style={styles.controls}>
-                  <Text style={styles.countText}>{datosHoy[m.id] || 0}/{m.meta}</Text>
+                  <Text style={styles.countText}>{(datosHoy[m.id] || 0)}/{m.meta}</Text>
                   <TouchableOpacity onPress={() => modificarDato(m.id, -1)} style={styles.stepBtn}><Text>-</Text></TouchableOpacity>
                   <TouchableOpacity onPress={() => modificarDato(m.id, 1)} style={styles.stepBtn}><Text>+</Text></TouchableOpacity>
                 </View>
@@ -184,7 +159,7 @@ export default function App() {
             ))}
           </View>
 
-          {/* DEPORTES */}
+          {/* SECCIÓN DEPORTES RESTAURADA */}
           <View style={styles.sectionCard}>
             <View style={styles.headerRow}>
               <Text style={styles.sectionTitle}>Actividad Física</Text>
@@ -193,80 +168,69 @@ export default function App() {
               </TouchableOpacity>
             </View>
             {(datosHoy.deportes || []).map((d, i) => (
+              <View key={i} style={styles.logRow}><Text>🏃 {d.nombre}</Text><Text style={{fontWeight:'bold'}}>{d.kcal} kcal</Text></View>
+            ))}
+          </View>
+
+          {/* SECCIÓN PESO RESTAURADA */}
+          <View style={[styles.sectionCard, {marginBottom: 40}]}>
+            <Text style={styles.sectionTitle}>Evolución (Historial)</Text>
+            {controles.map((c, i) => (
               <View key={i} style={styles.logRow}>
-                <Text>🏃 {d.nombre}</Text>
-                <Text style={{fontWeight:'bold'}}>{d.kcal} kcal</Text>
+                <View><Text style={{fontWeight:'bold'}}>{c.fecha}</Text></View>
+                <Text style={{color:'#3b82f6'}}>{c.peso}kg | {c.grasa}% grasa</Text>
               </View>
             ))}
           </View>
-          
-          <View style={{height: 50}} />
         </ScrollView>
 
-        {/* MODAL CONFIGURACIÓN (EL QUE FALLABA) */}
-        <Modal visible={modalConfig} animationType="pageSheet" presentationStyle="pageSheet">
-          <SafeAreaView style={{flex:1, backgroundColor: '#f8fafc'}}>
-            <View style={styles.modalContent}>
-              <Text style={styles.modalHeader}>Ajustar Metas Diarias</Text>
-              <Text style={styles.inputLabel}>Vasos de Agua:</Text>
-              <TextInput 
-                style={styles.modalInput} 
-                keyboardType="numeric" 
-                defaultValue={metaVasos.toString()} 
-                onChangeText={v => setMetaVasos(parseInt(v)||0)}
-              />
-              {metas.map(m => (
-                <View key={m.id} style={styles.configRow}>
-                  <Text>{m.emoji} {m.nombre}</Text>
-                  <TextInput 
-                    style={styles.miniInput} 
-                    keyboardType="numeric" 
-                    defaultValue={m.meta.toString()}
-                    onChangeText={v => {
-                      const newMetas = metas.map(x => x.id === m.id ? {...x, meta: parseInt(v)||0} : x);
-                      setMetas(newMetas);
-                    }}
-                  />
-                </View>
-              ))}
-              <TouchableOpacity style={styles.saveBtn} onPress={() => {guardarTodo(null, metas); setModalConfig(false);}}>
-                <Text style={styles.saveBtnText}>GUARDAR CAMBIOS</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => setModalConfig(false)}>
-                <Text style={styles.cancelText}>Cerrar</Text>
-              </TouchableOpacity>
-            </View>
-          </SafeAreaView>
+        {/* MODAL CONFIG */}
+        <Modal visible={modalConfig} animationType="slide">
+          <SafeAreaView style={{flex:1, backgroundColor: '#f8fafc'}}><ScrollView style={{padding: 30}}>
+            <Text style={styles.modalHeader}>Configurar Metas</Text>
+            <Text style={styles.inputLabel}>Agua (Vasos):</Text>
+            <TextInput style={styles.modalInput} keyboardType="numeric" defaultValue={metaVasos.toString()} onChangeText={v => setMetaVasos(parseInt(v)||0)}/>
+            {metas.map(m => (
+              <View key={m.id} style={styles.configRow}><Text>{m.emoji} {m.nombre}</Text>
+                <TextInput style={styles.miniInput} keyboardType="numeric" defaultValue={m.meta.toString()} onChangeText={v => {
+                  const nm = metas.map(x => x.id === m.id ? {...x, meta: parseInt(v)||0} : x); setMetas(nm);
+                }}/>
+              </View>
+            ))}
+            <TouchableOpacity style={styles.saveBtn} onPress={() => {guardarTodo(null, metas); setModalConfig(false);}}><Text style={styles.saveBtnText}>GUARDAR</Text></TouchableOpacity>
+            <TouchableOpacity onPress={() => setModalConfig(false)}><Text style={styles.cancelText}>Cerrar</Text></TouchableOpacity>
+          </ScrollView></SafeAreaView>
         </Modal>
 
         {/* MODAL PESO DECIMAL */}
         <Modal visible={modalControl} transparent animationType="fade">
-          <View style={styles.overlay}>
-            <View style={styles.alertBox}>
-              <Text style={styles.modalHeader}>Registro de Peso</Text>
-              <TextInput 
-                placeholder="Peso (ej: 75.4)" 
-                style={styles.modalInput} 
-                keyboardType="decimal-pad" 
-                onChangeText={v => setPesoInput(v.replace(',', '.'))}
-              />
-              <TextInput 
-                placeholder="% Grasa" 
-                style={styles.modalInput} 
-                keyboardType="decimal-pad" 
-                onChangeText={v => setGrasaInput(v.replace(',', '.'))}
-              />
-              <TouchableOpacity style={styles.saveBtn} onPress={() => {
-                const nCon = [{ fecha: diaSeleccionado, peso: pesoInput, grasa: grasaInput }, ...controles];
-                setControles(nCon); guardarTodo(null, null, nCon); setModalControl(false);
-              }}>
-                <Text style={styles.saveBtnText}>REGISTRAR</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => setModalControl(false)}>
-                <Text style={styles.cancelText}>Cancelar</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
+          <View style={styles.overlay}><View style={styles.alertBox}>
+            <Text style={styles.modalHeader}>Nuevo Control</Text>
+            <TextInput placeholder="Peso (ej: 75.5)" style={styles.modalInput} keyboardType="decimal-pad" onChangeText={v => setPesoInput(v.replace(',', '.'))}/>
+            <TextInput placeholder="% Grasa" style={styles.modalInput} keyboardType="decimal-pad" onChangeText={v => setGrasaInput(v.replace(',', '.'))}/>
+            <TouchableOpacity style={styles.saveBtn} onPress={() => {
+              const nCon = [{ fecha: diaSeleccionado, peso: pesoInput, grasa: grasaInput }, ...controles];
+              setControles(nCon); guardarTodo(null, null, nCon); setModalControl(false);
+            }}><Text style={styles.saveBtnText}>GUARDAR</Text></TouchableOpacity>
+            <TouchableOpacity onPress={() => setModalControl(false)}><Text style={styles.cancelText}>Cancelar</Text></TouchableOpacity>
+          </View></View>
+        </Modal>
+
+        {/* MODAL DEPORTE */}
+        <Modal visible={modalDeporte} transparent animationType="fade">
+          <View style={styles.overlay}><View style={styles.alertBox}>
+            <Text style={styles.modalHeader}>Añadir Deporte</Text>
+            <TextInput placeholder="¿Qué hiciste?" style={styles.modalInput} onChangeText={setNombreDep}/>
+            <TextInput placeholder="Calorías" style={styles.modalInput} keyboardType="numeric" onChangeText={setKcalDep}/>
+            <TouchableOpacity style={styles.saveBtn} onPress={() => {
+              if(!nombreDep || !kcalDep) return;
+              const nReg = { ...registro }; if (!nReg[diaSeleccionado]) nReg[diaSeleccionado] = { agua: 0, deportes: [] };
+              if (!nReg[diaSeleccionado].deportes) nReg[diaSeleccionado].deportes = [];
+              nReg[diaSeleccionado].deportes.push({ nombre: nombreDep, kcal: parseInt(kcalDep) });
+              guardarTodo(nReg); setModalDeporte(false);
+            }}><Text style={styles.saveBtnText}>REGISTRAR</Text></TouchableOpacity>
+            <TouchableOpacity onPress={() => setModalDeporte(false)}><Text style={styles.cancelText}>Cancelar</Text></TouchableOpacity>
+          </View></View>
         </Modal>
 
       </KeyboardAvoidingView>
@@ -281,20 +245,15 @@ const styles = StyleSheet.create({
   welcomeText: { color: '#94a3b8', fontSize: 14, fontWeight: '600' },
   dateText: { color: 'white', fontSize: 22, fontWeight: 'bold' },
   settingsBtn: { backgroundColor: 'rgba(255,255,255,0.15)', padding: 12, borderRadius: 15 },
-  statsCard: { 
-    backgroundColor: 'rgba(255,255,255,0.1)', 
-    marginTop: 20, padding: 20, 
-    borderRadius: 20, flexDirection: 'row', 
-    justifyContent: 'space-between', alignItems: 'center' 
-  },
+  statsCard: { backgroundColor: 'rgba(255,255,255,0.1)', marginTop: 20, padding: 20, borderRadius: 20, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   statsLabel: { color: '#94a3b8', fontSize: 12, fontWeight: 'bold' },
   statsValue: { color: 'white', fontSize: 28, fontWeight: 'bold' },
   content: { flex: 1, padding: 20 },
   actionRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 },
-  mainBtn: { flex: 0.48, padding: 16, borderRadius: 18, alignItems: 'center', shadowOpacity: 0.1 },
-  mainBtnText: { color: 'white', fontWeight: 'bold', fontSize: 15 },
-  calendarCard: { borderRadius: 20, padding: 10, marginBottom: 20, elevation: 4 },
-  sectionCard: { backgroundColor: 'white', borderRadius: 24, padding: 20, marginBottom: 20, shadowColor: '#000', shadowOpacity: 0.05 },
+  mainBtn: { flex: 0.48, padding: 16, borderRadius: 18, alignItems: 'center' },
+  mainBtnText: { color: 'white', fontWeight: 'bold' },
+  calendarCard: { borderRadius: 20, marginBottom: 20 },
+  sectionCard: { backgroundColor: 'white', borderRadius: 24, padding: 20, marginBottom: 20 },
   sectionTitle: { fontSize: 17, fontWeight: 'bold', color: '#1e293b', marginBottom: 15 },
   itemRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
   itemInfo: { flexDirection: 'row', alignItems: 'center' },
@@ -304,16 +263,15 @@ const styles = StyleSheet.create({
   countText: { fontWeight: 'bold', color: '#3b82f6', marginRight: 10, fontSize: 16 },
   stepBtn: { backgroundColor: '#f1f5f9', width: 38, height: 38, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginLeft: 5 },
   addText: { color: '#3b82f6', fontWeight: 'bold' },
-  logRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 10 },
+  logRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center' },
   alertBox: { backgroundColor: 'white', width: '85%', padding: 25, borderRadius: 30 },
-  modalContent: { padding: 30 },
   modalHeader: { fontSize: 22, fontWeight: 'bold', textAlign: 'center', marginBottom: 20 },
-  modalInput: { backgroundColor: '#f1f5f9', padding: 15, borderRadius: 15, marginBottom: 15, fontSize: 16 },
+  modalInput: { backgroundColor: '#f1f5f9', padding: 15, borderRadius: 15, marginBottom: 15 },
   inputLabel: { fontWeight: 'bold', marginBottom: 10, color: '#64748b' },
   configRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 },
-  miniInput: { backgroundColor: '#f1f5f9', width: 60, padding: 10, borderRadius: 10, textAlign: 'center', fontWeight: 'bold' },
+  miniInput: { backgroundColor: '#f1f5f9', width: 60, padding: 10, borderRadius: 10, textAlign: 'center' },
   saveBtn: { backgroundColor: '#10b981', padding: 18, borderRadius: 15, alignItems: 'center', marginTop: 10 },
-  saveBtnText: { color: 'white', fontWeight: 'bold', fontSize: 16 },
-  cancelText: { textAlign: 'center', color: '#ef4444', marginTop: 20, fontWeight: '600' }
+  saveBtnText: { color: 'white', fontWeight: 'bold' },
+  cancelText: { textAlign: 'center', color: '#ef4444', marginTop: 20 }
 });
